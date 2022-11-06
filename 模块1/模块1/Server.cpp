@@ -35,6 +35,9 @@ void send_head(char* argue, SOCKET s, char* filename) {
 	else if (!strcmp(filetype, "png")) {
 		content_type = (char*)"iamge/png";
 	}
+	else {
+		content_type = NULL;
+	}
 
 
 	/*构造响应报文头部*/
@@ -61,6 +64,9 @@ void send_head(char* argue, SOCKET s, char* filename) {
 			cout << "Sending Error!" << endl;
 			return;
 		}
+	}
+	else {
+		cout << "Failed to parse file type!" << endl;
 	}
 	send(s, "\r\n", 2, 0);
 }
@@ -113,7 +119,7 @@ void main() {
 
 	/*监听socket*/
 	int port = 0;
-	char inaddr[20] = "";
+	string inaddr;
 	char Home[48] = "";
 	cout << "Please input port number:" << endl;
 	cin >> port;
@@ -122,21 +128,28 @@ void main() {
 	cout << "Please input Home directory:" << endl;
 	cin >> Home;
 
+	/*处理IP地址长度*/
+	const char* p = inaddr.c_str();
+
 	/*设置服务器的端口与地址*/
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;  //设置协议为ipv4
 	addr.sin_port = htons(port);  //处理端口号
-	addr.sin_addr.s_addr = inet_addr(inaddr);  //处理监听地址
+	addr.sin_addr.s_addr = inet_addr(p);  //处理监听地址
 
 	/*binding*/
 	int rtn = bind(srvSocket, (LPSOCKADDR)&addr, sizeof(addr));
 	if (rtn != SOCKET_ERROR)
 		cout << "Socket bind OK!" << endl;
-
+	else {
+		cout << "Socket binding Error!" << endl;
+		return ;
+	}
 	/*监听*/
 	rtn = listen(srvSocket, 5);
 	if (rtn != SOCKET_ERROR)
 		cout << "Socket listen OK!" << endl;
+	else cout << "Socket listen Error!" << endl;
 
 	/*创建客户端地址*/
 	struct sockaddr_in clientAddr;
@@ -148,7 +161,7 @@ void main() {
 		if (sessionSocket != INVALID_SOCKET)
 			cout << "Socket listen one client request!" << endl;
 
-		cout << "The IP and port number of the client are：" << inet_ntoa(clientAddr.sin_addr) << htons(clientAddr.sin_port) << endl;
+		cout << "The IP and port number of the client are：" << inet_ntoa(clientAddr.sin_addr) << htons(clientAddr.sin_port) << endl<<endl;
 
 		/*开始会话*/
 		char recvBuf[4096] = ""; //设置缓冲区
