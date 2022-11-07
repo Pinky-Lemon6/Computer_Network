@@ -79,11 +79,21 @@ void send_file(SOCKET s, char* filename) {
 
 	if (error) {
 		cout << "Fail to open file!" << endl;
+		FILE* efile;
+		char* not_name = (char*)"D:\\Study\\ComputerNetwork\\Module1\\File\\404.html";
+		errno_t err = fopen_s(&efile, not_name, "rb");
+		fseek(efile, 0L, SEEK_END);
+		int e_len = ftell(efile);
+		char* e = new char[e_len + 1];
+		fseek(efile, 0L, SEEK_SET);
+		fread(e, e_len, 1, efile);
+		send(s, e, e_len, 0);
 		return;
 	}
+
 	fseek(pfile, 0L, SEEK_END);
 	int file_len = ftell(pfile);
-	char* p = (char*)malloc(file_len + 1);
+	char* p = new char[file_len+1];
 	fseek(pfile, 0L, SEEK_SET);
 	fread(p, file_len, 1, pfile);
 	send(s, p, file_len, 0);
