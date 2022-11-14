@@ -20,6 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DataStructure.h" />
+    <ClInclude Include="GBNRdtReceiver.h" />
+    <ClInclude Include="GBNRdtSender.h" />
     <ClInclude Include="Global.h" />
     <ClInclude Include="NetworkService.h" />
     <ClInclude Include="RandomEventEnum.h" />
