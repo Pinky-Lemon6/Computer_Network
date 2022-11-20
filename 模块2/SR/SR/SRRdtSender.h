@@ -8,7 +8,7 @@ private:
 	int expectSequenceNumberSend;	// 下一个发送序号 
 	bool waitingState;				// 是否处于等待Ack的状态
 	Packet packetWaitingAck[Winlength];		//已发送并等待Ack的数据包
-	bool ACKStatus[Winlength];  //各数据包ACK状态
+	bool ACKStatus[Winlength];  //各数据包ACK序号的确认状态
 public:
 
 	bool getWaitingState();
