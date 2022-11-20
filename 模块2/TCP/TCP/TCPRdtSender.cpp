@@ -7,9 +7,6 @@
 
 TCPRdtSender::TCPRdtSender() : base(0), expectSequenceNumberSend(0), waitingState(false)
 {
-	for (int i = 0; i < Winlength; i++) {
-		ACKStatus[i] = false;           //初始化等待状态
-	}
 }
 
 
@@ -30,7 +27,12 @@ bool TCPRdtSender::send(const Message& message) {
 	if (this->waitingState) { //发送方处于等待确认状态
 		return false;
 	}
-
+	if (initFlag) {
+		for (int i = 0; i < Winlength; i++) {
+			this->packetWaitingAck[i].seqnum = -1;
+		}
+		initFlag = false;
+	}
 
 	if (expectSequenceNumberSend < base + N) {
 		this->packetWaitingAck[expectSequenceNumberSend % Winlength].acknum = -1; //忽略该字段
@@ -38,12 +40,14 @@ bool TCPRdtSender::send(const Message& message) {
 		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = 0;
 		memcpy(this->packetWaitingAck[expectSequenceNumberSend % Winlength].payload, message.data, sizeof(message.data));
 		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = pUtils->calculateCheckSum(this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
-		ACKStatus[expectSequenceNumberSend % Winlength] = false;
 
 		pUtils->printPacket("发送方发送报文", this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
 
-		cout <<"序列"<< expectSequenceNumberSend<<"发送方启动计时器" << endl;
-		pns->startTimer(SENDER, Configuration::TIME_OUT, expectSequenceNumberSend);  //启动发送方定时器
+		if (base == expectSequenceNumberSend) {
+			cout << "发送方启动计时器" << endl;
+			pns->startTimer(SENDER, Configuration::TIME_OUT, expectSequenceNumberSend);  //启动发送基序列方定时器
+		}
+		
 		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[expectSequenceNumberSend % Winlength]);								//调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
 		expectSequenceNumberSend++;
 
@@ -62,12 +66,12 @@ void TCPRdtSender::receive(const Packet& ackPkt) {
 	//如果校验和正确，并且确认序号是发送方已发送并等待确认的数据包序号
 	if (checkSum == ackPkt.checksum ) {
 		pUtils->printPacket("发送方正确收到确认！", ackPkt);
-
-		for (int i = base+N; i < base+Winlength; i++) {
-			packetWaitingAck[i % Winlength].seqnum = -1;
+		int based = base;
+		base = ackPkt.acknum+1;
+		for (int i = base + N; i < base + Winlength; i++) {
+			packetWaitingAck[i % Winlength].seqnum = -1;  //标记不在窗口中的序号
 		}
-		cout << "发送方滑动窗口内容：" << '['<<' ';
-
+		cout << "发送方滑动窗口的内容为：" << '[' << ' ';
 		for (int i = base; i < base+N; i++) {
 			if (packetWaitingAck[i % Winlength].seqnum == -1) {
 				cout << '*' << ' ';
@@ -77,27 +81,40 @@ void TCPRdtSender::receive(const Packet& ackPkt) {
 			}
 		}
 		cout << ']' << endl;
-		if (base == ackPkt.acknum) {
-			cout << "已确认ACK序号为：" <<ackPkt.acknum<<"的ACK" << endl;
-			pns->stopTimer(SENDER, ackPkt.acknum);  //停止计时
-			ACKStatus[base % Winlength] = true;
-			while (ACKStatus[base % Winlength]) {
-				ACKStatus[base++ % Winlength] = false;  //若已确认ACK序号则将其ACK状态设为false
-			}
-			waitingState = false; //结束等待
-		}
-		else if(ackPkt.acknum>base && !ACKStatus[ackPkt.acknum % Winlength]) {
-			cout << "已确认ACK序号为：" << ackPkt.acknum << "的ACK" << endl;
-			pns->stopTimer(SENDER, ackPkt.acknum);
-			ACKStatus[ackPkt.acknum % Winlength] = true;  //接收尚未结束，继续等待
+		if (base == expectSequenceNumberSend) {
+			cout << "已发送的分组已全部接收，关闭计时器！" << endl;
+			this->waitingState = false;
+			pns->stopTimer(SENDER, based); //关闭计时器
 		}
 		else {
-			cout << "接收到了不需要的序列的ACK，继续等待！" << endl;
+			pns->stopTimer(SENDER, based); //尚未接收完，继续等待
+			pns->startTimer(SENDER, Configuration::TIME_OUT, base);
+			this->waitingState = false;
 		}
 	}
 	else {
-			cout << "发送方收到的ACK损坏！" << endl;
+		if (ackPkt.acknum == lastACK) {
+			ACKCount++;
+			if (ACKCount == 4) {
+				cout << "收到了三个冗余的ACK，快速重传序号：" << ackPkt.acknum + 1 << endl;
+				pns->stopTimer(SENDER, ackPkt.acknum + 1);
+				pns->startTimer(SENDER, Configuration::TIME_OUT, ackPkt.acknum + 1);
+				pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[base % Winlength]);
+
+			}
 		}
+		else {
+			lastACK = ackPkt.acknum;
+			ACKCount = 1;
+		}
+		
+		if (checkSum != ackPkt.checksum) {
+			cout << "发送方收到的ACK损坏" << endl;
+		}
+		else {
+			cout << "发送方没有收到正确的序号，继续等待" << endl;
+		}
+	}
 
 }
 
