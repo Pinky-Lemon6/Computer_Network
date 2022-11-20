@@ -18,7 +18,7 @@ int main(int argc, char* argv[])
 	pns->setRtdSender(ps);
 	pns->setRtdReceiver(pr);
 	pns->setInputFile("D:\\Study\\ComputerNetwork\\Module2\\input.txt");
-	pns->setOutputFile("D:\Study\ComputerNetwork\Module2\\GBN\\gbn_output.txt");
+	pns->setOutputFile("D:\\Study\ComputerNetwork\Module2\\output.txt");
 
 	pns->start();
 
