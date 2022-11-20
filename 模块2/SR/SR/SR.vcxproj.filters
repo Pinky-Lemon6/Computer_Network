@@ -39,13 +39,13 @@
     <ClInclude Include="Tool.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
     <ClInclude Include="SRRdtReceiver.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="SRRdtSender.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="stdafx.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
