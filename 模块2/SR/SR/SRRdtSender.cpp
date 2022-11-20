@@ -27,13 +27,12 @@ bool SRRdtSender::getWaitingState() {
 
 
 bool SRRdtSender::send(const Message& message) {
-	if (this->getWaitingState()) { //发送方处于等待确认状态
+	if (this->waitingState) { //发送方处于等待确认状态
 		return false;
 	}
 
 
 	if (expectSequenceNumberSend < base + N) {
-
 		this->packetWaitingAck[expectSequenceNumberSend % Winlength].acknum = -1; //忽略该字段
 		this->packetWaitingAck[expectSequenceNumberSend % Winlength].seqnum = this->expectSequenceNumberSend;
 		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = 0;
