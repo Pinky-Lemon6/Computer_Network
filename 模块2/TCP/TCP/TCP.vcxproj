@@ -139,6 +139,12 @@
     <ClInclude Include="TCPRdtSender.h" />
     <ClInclude Include="Tool.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="TCP.cpp" />
+    <ClCompile Include="TCPRdtRceiver.cpp" />
+    <ClCompile Include="TCPRdtSender.cpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
