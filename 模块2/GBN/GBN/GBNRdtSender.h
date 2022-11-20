@@ -5,13 +5,11 @@
 class GBNRdtSender :public RdtSender
 {
 private:
-	int SequenceNumber;            //发送序号
-	int winlen;                   //窗口大小
-	int base;                     //序号二进制位数
+	int base;
+	bool initflag = true;  //是否初始化
 	int expectSequenceNumberSend;	// 下一个发送序号 
 	bool waitingState;				// 是否处于等待Ack的状态
-	Packet packetWaitingAck;		//已发送并等待Ack的数据包
-	deque<Packet> * window;
+	Packet packetWaitingAck[Winlength];		//已发送并等待Ack的数据包
 public:
 
 	bool getWaitingState();

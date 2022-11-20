@@ -4,12 +4,10 @@
 #include <deque>
 #include <iostream>
 
-FILE* Window;
-errno_t error = fopen_s(&Window,"window.txt", "w");
 
-GBNRdtSender::GBNRdtSender() :SequenceNumber(8), winlen(4), base(0), expectSequenceNumberSend(0), waitingState(false)
+GBNRdtSender::GBNRdtSender() : base(0), expectSequenceNumberSend(0), waitingState(false)
 {
-	window = new deque<Packet>;//初始化窗口
+
 }
 
 
@@ -20,7 +18,7 @@ GBNRdtSender::~GBNRdtSender()
 
 
 bool GBNRdtSender::getWaitingState() {
-	return (window->size() == winlen);//限长等待
+	return waitingState;//返回当前等待状态
 }
 
 
@@ -31,22 +29,36 @@ bool GBNRdtSender::send(const Message& message) {
 		return false;
 	}
 
-	this->packetWaitingAck.acknum = -1; //忽略该字段
-	this->packetWaitingAck.seqnum = this->expectSequenceNumberSend;
-	this->packetWaitingAck.checksum = 0;
-	memcpy(this->packetWaitingAck.payload, message.data, sizeof(message.data));
-	this->packetWaitingAck.checksum = pUtils->calculateCheckSum(this->packetWaitingAck);
-	window->push_back(packetWaitingAck);//将待发送的包加入窗口队列
-
-	pUtils->printPacket("发送方发送报文", this->packetWaitingAck);
-	fprintf(Window, "发送方发送seqnum=%d\n", this->packetWaitingAck.seqnum);
-	if (this->base == this->expectSequenceNumberSend) {
-		pns->startTimer(SENDER, Configuration::TIME_OUT, this->packetWaitingAck.seqnum);			//启动发送方定时器
+	if (initflag) {
+		for (int i = 0; i < Winlength; i++) {
+			this->packetWaitingAck[i].seqnum = -1; //等待中的数据包的序号置为-1
+		}
+		initflag = false;
 	}
-	pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck);								//调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
 
-	this->expectSequenceNumberSend = (this->expectSequenceNumberSend + 1) % this->SequenceNumber;
+	if (expectSequenceNumberSend < base + N) {
 
+		this->packetWaitingAck[expectSequenceNumberSend % Winlength].acknum = -1; //忽略该字段
+		this->packetWaitingAck[expectSequenceNumberSend % Winlength].seqnum = this->expectSequenceNumberSend;
+		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = 0;
+		memcpy(this->packetWaitingAck[expectSequenceNumberSend % Winlength].payload, message.data, sizeof(message.data));
+		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = pUtils->calculateCheckSum(this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
+		
+
+		pUtils->printPacket("发送方发送报文", this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
+
+		if (base == expectSequenceNumberSend) {
+			cout << "发送方启动计时器" << endl;
+			pns->startTimer(SENDER, Configuration::TIME_OUT, base);  //启动发送基序列方定时器
+		}
+		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[expectSequenceNumberSend % Winlength]);								//调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
+		expectSequenceNumberSend++;
+		cout << "发送完毕后，expectSequenceNumberSend为：" << expectSequenceNumberSend << endl;
+
+		if (expectSequenceNumberSend == base + N) {
+			this->waitingState = true;  //进入等待状态
+		}
+	}
 	return true;
 }
 
@@ -55,50 +67,63 @@ void GBNRdtSender::receive(const Packet& ackPkt) {
 	//检查校验和是否正确
 	int checkSum = pUtils->calculateCheckSum(ackPkt);
 	//如果校验和正确，并且确认序号不是发送方已确认的数据包序号
-	if (checkSum == ackPkt.checksum && ackPkt.acknum != (this->base + 7) % 8) {
+	if (checkSum == ackPkt.checksum && ackPkt.acknum >= base) {
+
+		int based = base;
 		pUtils->printPacket("发送方正确收到确认", ackPkt);
-		fprintf(Window, "发送方正确收到确认acknum=%d\n", ackPkt.acknum);
-		fprintf(Window, "滑动窗口之前base=%d,size=%d,\n", this->base, window->size());
-		for (int i = 0; i < window->size(); i++) {
-			fprintf(Window, "发送方窗口:seqnum=%d\n", window->at(i).seqnum, window->at(i));
+		base = ackPkt.acknum + 1;
+
+		for (int i = base+N; i < base+Winlength; i++) {
+			packetWaitingAck[i % Winlength].seqnum = -1;
 		}
-		while (this->base != (ackPkt.acknum + 1) % this->SequenceNumber) {//滑动窗口
-			pns->stopTimer(SENDER, this->base);
-			window->pop_front();
-			this->base = (this->base + 1) % this->SequenceNumber;
+		cout << "发送方滑动窗口内容：" << '['<<' ';
+
+		for (int i = base; i < base+N; i++) {
+			if (packetWaitingAck[i % Winlength].seqnum == -1) {
+				cout << '*' << ' ';
+			}
+			else {
+				cout << packetWaitingAck[i % Winlength].seqnum << ' ';
+			}
 		}
-		printf("滑动窗口之后base=%d,size=%d\n", this->base, window->size());
-		fprintf(Window, "滑动窗口之后base=%d,size=%d\n", this->base, window->size());
-		for (int i = 0; i < window->size(); i++) {
-			fprintf(Window, "发送方窗口:seqnum=%d\n", window->at(i).seqnum);
+		cout << ']' << endl;
+		if (base == expectSequenceNumberSend) {
+			cout << "已发送的分组已经全部接送，关闭计时器。" << endl;
+			this->waitingState = false;
+			pns->stopTimer(SENDER, based);
 		}
-		if (window->size() != 0) {
-			pns->startTimer(SENDER, Configuration::TIME_OUT, window->front().seqnum);//以第一个包的序号开启计时器
+		else {
+			pns->stopTimer(SENDER, based);
+			pns->startTimer(SENDER, Configuration::TIME_OUT, base);//尚未接收完，继续等待
+			this->waitingState = false;
 		}
+
 	}
 	else {
 		if (checkSum != ackPkt.checksum) {
-			pUtils->printPacket("发送方没有正确收到该报文确认,数据校验错误", ackPkt);
-			fprintf(Window, "发送方没有正确收到该报文确认，数据校验错误\n");
+			cout << "发送方收到的ACK损坏！" << endl;
 		}
-		else if (ackPkt.acknum == (this->base + 7) % 8) {
-			pUtils->printPacket("发送方已正确收到过该报文确认", ackPkt);
-			fprintf(Window, "发送方已正确收到过该报文确认,acknum=%d\n", ackPkt.acknum);
+		else {
+			cout << "发送方没有收到正确的序号，继续等待！" << endl;
 		}
 	}
 }
 
 void GBNRdtSender::timeoutHandler(int seqNum) {
 	//唯一一个定时器,无需考虑seqNum
-	pUtils->printPacket("发送方定时器时间到，重发上次发送的报文", this->packetWaitingAck);
-	fprintf(Window, "发送方定时器时间到，base=%d,size=%d,\n", this->base, window->size());
+	cout << "发送超时，回退!" << endl;
 	//重新发送数据包
-	pns->stopTimer(SENDER, window->front().seqnum);										//首先关闭定时器
-	pns->startTimer(SENDER, Configuration::TIME_OUT, window->front().seqnum);			//重新启动发送方定时器
+	pns->stopTimer(SENDER,seqNum);										//首先关闭定时器
+	pns->startTimer(SENDER, Configuration::TIME_OUT,seqNum);			//重新启动发送方定时器
 	//printf("启动seqnum=%d的计时器\n", window->front().seqnum);
-	for (deque<Packet>::iterator itor = window->begin(); itor != window->end(); ++itor) {
-		pns->sendToNetworkLayer(RECEIVER, *itor);
-	}
+	int i = base;
+	do {
+		cout << "重发" << i << "号报文" << endl;
+		pUtils->printPacket("发送方定时器时间到，重发报文！", this->packetWaitingAck[i % Winlength]);
+		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[i % Winlength]);
+		i++;
+	} while (i != expectSequenceNumberSend);
+
 }
 
 

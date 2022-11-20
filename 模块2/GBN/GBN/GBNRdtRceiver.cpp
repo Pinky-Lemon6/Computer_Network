@@ -37,7 +37,8 @@ void GBNRdtReceiver::receive(const Packet& packet) {
 		pUtils->printPacket("接收方发送确认报文", lastAckPkt);
 		pns->sendToNetworkLayer(SENDER, lastAckPkt);	//调用模拟网络环境的sendToNetworkLayer，通过网络层发送确认报文到对方
 
-		this->expectSequenceNumberRcvd = 1 - this->expectSequenceNumberRcvd; //接收序号在0-1之间切换
+		//this->expectSequenceNumberRcvd = 1 - this->expectSequenceNumberRcvd; //接收序号在0-1之间切换
+		this->expectSequenceNumberRcvd++; //切换到下一个接收序号
 	}
 	else {
 		if (checkSum != packet.checksum) {
@@ -45,6 +46,7 @@ void GBNRdtReceiver::receive(const Packet& packet) {
 		}
 		else {
 			pUtils->printPacket("接收方没有正确收到发送方的报文,报文序号不对", packet);
+			cout << "接收方期待接收到的序号：" << this->expectSequenceNumberRcvd << endl;
 		}
 		pUtils->printPacket("接收方重新发送上次的确认报文", lastAckPkt);
 		pns->sendToNetworkLayer(SENDER, lastAckPkt);	//调用模拟网络环境的sendToNetworkLayer，通过网络层发送上次的确认报文
