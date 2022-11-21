@@ -7,7 +7,7 @@ private:
 	int base;
 	int expectSequenceNumberSend;	// 下一个发送序号
 	bool initFlag = true;
-	int ACKCount = 0;
+	int ACKCount = 0;  //收到的ACK的数量
 	int lastACK = -1; //上一个ACK数据包序号
 	bool waitingState;				// 是否处于等待Ack的状态
 	Packet packetWaitingAck[N];		//已发送并等待Ack的数据包

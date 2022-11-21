@@ -94,10 +94,10 @@ void TCPRdtSender::receive(const Packet& ackPkt) {
 		}
 	}
 	else {
-		if (ackPkt.acknum == lastACK) { //快速重传
+		if (ackPkt.acknum == lastACK) { 
 			ACKCount++;
-			if (ACKCount == 4) {
-				cout << "收到了三个冗余的ACK，快速重传序号：" << ackPkt.acknum + 1 << endl;
+			if (ACKCount == 4) { //快速重传
+				cout << "收到了三个冗余的ACK，快速重传序号为：" << ackPkt.acknum + 1 <<"的报文" << endl;
 				pns->stopTimer(SENDER, ackPkt.acknum + 1);
 				pns->startTimer(SENDER, Configuration::TIME_OUT, ackPkt.acknum + 1);
 				pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[base % N]);   //调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
@@ -105,7 +105,7 @@ void TCPRdtSender::receive(const Packet& ackPkt) {
 			}
 		}
 		else {
-			lastACK = ackPkt.acknum;
+			lastACK = ackPkt.acknum; //更新上一个确认的序号
 			ACKCount = 1;
 		}
 		
