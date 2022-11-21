@@ -7,8 +7,8 @@ private:
 	int base;
 	int NextSeqNum;	// 期待收到的下一个报文序号
 	Packet lastAckPkt;				//上次发送的确认报文
-	Packet ReceivedPacket[Winlength];		//已发送并等待Ack的数据包
-	bool packetWaitingStatus[Winlength];  //各数据包的等待状态
+	Packet ReceivedPacket[N];		//已发送并等待Ack的数据包
+	bool packetWaitingStatus[N];  //各数据包的等待状态
 public:
 	SRRdtReceiver();
 	virtual ~SRRdtReceiver();

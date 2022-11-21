@@ -9,7 +9,7 @@ private:
 	bool initflag = true;  //是否初始化
 	int expectSequenceNumberSend;	// 下一个发送序号 
 	bool waitingState;				// 是否处于等待Ack的状态
-	Packet packetWaitingAck[Winlength];		//已发送并等待Ack的数据包
+	Packet packetWaitingAck[N];		//已发送并等待Ack的数据包
 public:
 
 	bool getWaitingState();

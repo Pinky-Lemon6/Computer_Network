@@ -30,32 +30,32 @@ bool GBNRdtSender::send(const Message& message) {
 	}
 
 	if (initflag) {
-		for (int i = 0; i < Winlength; i++) {
+		for (int i = 0; i < N; i++) {
 			this->packetWaitingAck[i].seqnum = -1; //等待中的数据包的序号置为-1
 		}
 		initflag = false;
 	}
 
-	if (expectSequenceNumberSend < base + N) {
+	if (expectSequenceNumberSend < base + Winlength) {
 
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].acknum = -1; //忽略该字段
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].seqnum = this->expectSequenceNumberSend;
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = 0;
-		memcpy(this->packetWaitingAck[expectSequenceNumberSend % Winlength].payload, message.data, sizeof(message.data));
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = pUtils->calculateCheckSum(this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
+		this->packetWaitingAck[expectSequenceNumberSend % N].acknum = -1; //忽略该字段
+		this->packetWaitingAck[expectSequenceNumberSend % N].seqnum = this->expectSequenceNumberSend;
+		this->packetWaitingAck[expectSequenceNumberSend % N].checksum = 0;
+		memcpy(this->packetWaitingAck[expectSequenceNumberSend % N].payload, message.data, sizeof(message.data));
+		this->packetWaitingAck[expectSequenceNumberSend % N].checksum = pUtils->calculateCheckSum(this->packetWaitingAck[expectSequenceNumberSend % N]);
 		
 
-		pUtils->printPacket("发送方发送报文", this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
+		pUtils->printPacket("发送方发送报文", this->packetWaitingAck[expectSequenceNumberSend % N]);
 
 		if (base == expectSequenceNumberSend) {
 			cout << "发送方启动计时器" << endl;
 			pns->startTimer(SENDER, Configuration::TIME_OUT, base);  //启动发送基序列方定时器
 		}
-		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[expectSequenceNumberSend % Winlength]);								//调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
+		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[expectSequenceNumberSend % N]);								//调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
 		expectSequenceNumberSend++;
 		cout << "发送完毕后，expectSequenceNumberSend为：" << expectSequenceNumberSend << endl;
 
-		if (expectSequenceNumberSend == base + N) {
+		if (expectSequenceNumberSend == base + Winlength) {
 			this->waitingState = true;  //进入等待状态
 		}
 	}
@@ -73,17 +73,17 @@ void GBNRdtSender::receive(const Packet& ackPkt) {
 		pUtils->printPacket("发送方正确收到确认", ackPkt);
 		base = ackPkt.acknum + 1;
 
-		for (int i = base+N; i < base+Winlength; i++) {
-			packetWaitingAck[i % Winlength].seqnum = -1;
+		for (int i = base+Winlength; i < base+N; i++) {
+			packetWaitingAck[i % N].seqnum = -1;
 		}
 		cout << "发送方滑动窗口内容：" << '['<<' ';
 
-		for (int i = base; i < base+N; i++) {
-			if (packetWaitingAck[i % Winlength].seqnum == -1) {
+		for (int i = base; i < base+Winlength; i++) {
+			if (packetWaitingAck[i % N].seqnum == -1) {
 				cout << '*' << ' ';
 			}
 			else {
-				cout << packetWaitingAck[i % Winlength].seqnum << ' ';
+				cout << packetWaitingAck[i % N].seqnum << ' ';
 			}
 		}
 		cout << ']' << endl;
@@ -119,8 +119,8 @@ void GBNRdtSender::timeoutHandler(int seqNum) {
 	int i = base;
 	do {
 		cout << "重发" << i << "号报文" << endl;
-		pUtils->printPacket("发送方定时器时间到，重发报文！", this->packetWaitingAck[i % Winlength]);
-		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[i % Winlength]);
+		pUtils->printPacket("发送方定时器时间到，重发报文！", this->packetWaitingAck[i % N]);
+		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[i % N]);
 		i++;
 	} while (i != expectSequenceNumberSend);
 

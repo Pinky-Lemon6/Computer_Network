@@ -28,31 +28,31 @@ bool TCPRdtSender::send(const Message& message) {
 		return false;
 	}
 	if (initFlag) {
-		for (int i = 0; i < Winlength; i++) {
+		for (int i = 0; i < N; i++) {
 			this->packetWaitingAck[i].seqnum = -1;
 		}
 		initFlag = false;
 	}
 
-	if (expectSequenceNumberSend < base + N) {
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].acknum = -1; //忽略该字段
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].seqnum = this->expectSequenceNumberSend;
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = 0;
-		memcpy(this->packetWaitingAck[expectSequenceNumberSend % Winlength].payload, message.data, sizeof(message.data));
-		this->packetWaitingAck[expectSequenceNumberSend % Winlength].checksum = pUtils->calculateCheckSum(this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
+	if (expectSequenceNumberSend < base + Winlength) {
+		this->packetWaitingAck[expectSequenceNumberSend % N].acknum = -1; //忽略该字段
+		this->packetWaitingAck[expectSequenceNumberSend % N].seqnum = this->expectSequenceNumberSend;
+		this->packetWaitingAck[expectSequenceNumberSend % N].checksum = 0;
+		memcpy(this->packetWaitingAck[expectSequenceNumberSend % N].payload, message.data, sizeof(message.data));
+		this->packetWaitingAck[expectSequenceNumberSend % N].checksum = pUtils->calculateCheckSum(this->packetWaitingAck[expectSequenceNumberSend % N]); //计算校验和
 
-		pUtils->printPacket("发送方发送报文", this->packetWaitingAck[expectSequenceNumberSend % Winlength]);
+		pUtils->printPacket("发送方发送报文", this->packetWaitingAck[expectSequenceNumberSend % N]);
 
 		if (base == expectSequenceNumberSend) {
 			cout << "发送方启动计时器" << endl;
 			pns->startTimer(SENDER, Configuration::TIME_OUT, expectSequenceNumberSend);  //启动发送基序列方定时器
 		}
 		
-		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[expectSequenceNumberSend % Winlength]);								//调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
+		pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[expectSequenceNumberSend % N]);  //调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
 		expectSequenceNumberSend++;
 
 		cout << "发送完毕后，expectSequenceNumberSend为：" << expectSequenceNumberSend << endl;
-		if (expectSequenceNumberSend == base + N) {
+		if (expectSequenceNumberSend == base + Winlength) {
 			this->waitingState = true;  //进入等待状态
 		}
 	}
@@ -64,24 +64,25 @@ void TCPRdtSender::receive(const Packet& ackPkt) {
 	//检查校验和是否正确
 	int checkSum = pUtils->calculateCheckSum(ackPkt);
 	//如果校验和正确，并且确认序号是发送方已发送并等待确认的数据包序号
-	if (checkSum == ackPkt.checksum ) {
-		pUtils->printPacket("发送方正确收到确认！", ackPkt);
+	if (checkSum == ackPkt.checksum && ackPkt.acknum >= base) {
 		int based = base;
+		pUtils->printPacket("发送方正确收到确认！", ackPkt);
+
 		base = ackPkt.acknum+1;
-		for (int i = base + N; i < base + Winlength; i++) {
-			packetWaitingAck[i % Winlength].seqnum = -1;  //标记不在窗口中的序号
+		for (int i = base + Winlength; i < base + N; i++) {
+			packetWaitingAck[i % N].seqnum = -1;  //标记不在窗口中的报文序号
 		}
 		cout << "发送方滑动窗口的内容为：" << '[' << ' ';
-		for (int i = base; i < base+N; i++) {
-			if (packetWaitingAck[i % Winlength].seqnum == -1) {
+		for (int i = base; i < base+Winlength; i++) {
+			if (packetWaitingAck[i % N].seqnum == -1) {
 				cout << '*' << ' ';
 			}
 			else {
-				cout << packetWaitingAck[i % Winlength].seqnum << ' ';
+				cout << packetWaitingAck[i % N].seqnum << ' ';
 			}
 		}
 		cout << ']' << endl;
-		if (base == expectSequenceNumberSend) {
+		if (base == expectSequenceNumberSend) { //全部接收
 			cout << "已发送的分组已全部接收，关闭计时器！" << endl;
 			this->waitingState = false;
 			pns->stopTimer(SENDER, based); //关闭计时器
@@ -93,13 +94,13 @@ void TCPRdtSender::receive(const Packet& ackPkt) {
 		}
 	}
 	else {
-		if (ackPkt.acknum == lastACK) {
+		if (ackPkt.acknum == lastACK) { //快速重传
 			ACKCount++;
 			if (ACKCount == 4) {
 				cout << "收到了三个冗余的ACK，快速重传序号：" << ackPkt.acknum + 1 << endl;
 				pns->stopTimer(SENDER, ackPkt.acknum + 1);
 				pns->startTimer(SENDER, Configuration::TIME_OUT, ackPkt.acknum + 1);
-				pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[base % Winlength]);
+				pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[base % N]);   //调用模拟网络环境的sendToNetworkLayer，通过网络层发送到对方
 
 			}
 		}
@@ -126,8 +127,8 @@ void TCPRdtSender::timeoutHandler(int seqNum) {
 	pns->startTimer(SENDER, Configuration::TIME_OUT,seqNum);			//重新启动发送方定时器
 	//printf("启动seqnum=%d的计时器\n", window->front().seqnum);
 	cout << "重发" << seqNum << "号报文" << endl;
-	pUtils->printPacket("发送方定时器时间到，重发报文！", this->packetWaitingAck[seqNum % Winlength]);
-	pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[seqNum % Winlength]);
+	pUtils->printPacket("发送方定时器时间到，重发报文！", this->packetWaitingAck[seqNum % N]);
+	pns->sendToNetworkLayer(RECEIVER, this->packetWaitingAck[seqNum % N]);
 }
 
 
